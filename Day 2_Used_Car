@@ -1,0 +1,62 @@
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 데이터 불러오기
+car_df = pd.read_csv('~/data/cars.csv')
+brand_df = pd.read_csv('~/data/brand.csv')
+
+# cars 데이터에서 브랜드 추출
+car_df['brand'] = car_df['title'].apply(lambda x: x.split()[0])
+
+# 브랜드 데이터와 결합
+merged_df = pd.merge(car_df, brand_df, on='brand', how='left')
+
+# 결측치 처리
+merged_df.fillna(0, inplace=True)
+
+# 데이터 타입 변환
+merged_df['price'] = merged_df['price'].astype(float)
+
+# 불필요한 열 제거
+merged_df.drop(columns=['title'], inplace=True)
+
+# 새로운 피처 생성
+merged_df['car_age'] = 2024 - merged_df['year']
+
+# 클러스터링을 위한 피처 선택
+features = ['price', 'mileage', 'year', 'car_age']
+
+# 스케일링
+scaler = StandardScaler()
+scaled_features = scaler.fit_transform(merged_df[features])
+
+# PCA 객체 생성 및 데이터에 피팅
+pca = PCA()
+pca.fit(scaled_features)
+
+# 누적 설명 분산비율 계산
+cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+
+# 70% 이상을 설명하는 주성분의 개수 선택
+n_components = np.argmax(cumulative_variance >= 0.7) + 1
+print(f"Number of components explaining 70% of the variance: {n_components}")
+
+# PCA 재수행 (최소한의 주성분 사용)
+pca = PCA(n_components=n_components)
+principal_components = pca.fit_transform(scaled_features)
+
+# 주성분 데이터프레임 생성
+principal_df = pd.DataFrame(data=principal_components, columns=[f'PC{i+1}' for i in range(n_components)])
+print(principal_df.head())
+
+# 2개의 주성분을 사용하여 2D 산점도 그리기
+if n_components >= 2:
+    plt.figure(figsize=(10, 7))
+    plt.scatter(principal_df['PC1'], principal_df['PC2'], c='blue', edgecolor='k', s=50)
+    plt.title('PCA - 2 Components')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.show()
